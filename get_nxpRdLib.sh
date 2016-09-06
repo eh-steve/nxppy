@@ -4,74 +4,39 @@ blue='\033[0;34m'
 NC='\033[0m' # No Color
 
 prereq() {
-  echo -e "[${blue}Installing prerequisites${NC}]"
-  sudo apt-get update
-  sudo apt-get -y install libglib2.0 glib-networking-services libreadline6-dev libglib2.0-dev glib-networking-services python2.7-dev build-essential autoconf libtool
-}
-
-neardal() {
-  echo -e "[${blue}Downloading NeardAL${NC}]"
-  git clone https://github.com/svvitale/neardal
-  cd neardal
-
-  echo -e "[${blue}Running autogen.sh${NC}]"
-  ./autogen.sh
-
-  echo -e "[${blue}Building NeardAL${NC}]"
-  make
-
-  echo -e "[${blue}Installing NeardAL${NC}]"
-  sudo make install
-
-  cd ..
-}
-
-wiringpi() {
-  echo -e "[${blue}Downloading wiringPi${NC}]"
-  git clone git://git.drogon.net/wiringPi
-  git reset --hard 72b2af231be337d45a557ce6ca3ed1eeb6675ffd
-
-  echo -e "[${blue}Building and Installing wiringPi${NC}]"
-  cd wiringPi
-  ./build
-
-  echo -e "[${blue}Running ldconfig${NC}]"
-  sudo ldconfig
-
-  cd ..
+  PREREQS="build-essential cmake $1"
+  
+  if dpkg -s $PREREQS > /dev/null 2>&1; then
+    echo -e "Prerequisites already installed: $PREREQS"
+  else
+    echo -e "[${blue}Installing prerequisites${NC}]"
+    sudo apt-get update
+    sudo apt-get -y install $PREREQS
+  fi
 }
 
 nxp() {
-  echo -e "[${blue}Downloading NXP Reader Library${NC}]"
-  wget http://www.nxp.com/redirect/explore-nfc-dev_latest -O nxp.zip
-  unzip -o nxp.zip
+  if [[ -d "nxp" ]]; then
+    echo -e "NXP Reader Library found, skipping download"
+  else
+    echo -e "[${blue}Downloading NXP Reader Library${NC}]"
+    wget https://nxp.box.com/shared/static/xxuwpzh2ztl63b8ujsclg5wqsmlxfmw1.zip -O nxp.zip
+    unzip -q -o -d nxp nxp.zip
+    rm nxp.zip
+  fi
 
-  tar --overwrite -xzf neard-explorenfc_*.orig.tar.gz
-  cd neard-explorenfc-*
-
-  export WIRINGPI_CFLAGS=-I/usr/local/include
-  export WIRINGPI_LIBS=-L/usr/local/lib\ -lwiringPi
-
-  echo -e "[${blue}Running bootstrap${NC}]"
-  ./bootstrap
-
-  echo -e "[${blue}Configuring NXP Reader Library${NC}]"
-  ./configure --prefix=/usr --sysconfdir=/etc
-
-  echo -e "[${blue}Building NXP Reader Library${NC}]"
-  cd nxprdlib
-  make
+  pushd nxp/build > /dev/null
+  cmake ..
+  make NxpRdLibLinuxPN512
+  popd > /dev/null
 }
 
 cleanup() {
-  cd ..
   rm -rf *.zip *.gz *.deb
 }
 
 all() {
-  prereq
-  neardal
-  wiringpi
+  prereq $@
   nxp
   cleanup
 }
