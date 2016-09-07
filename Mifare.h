@@ -108,7 +108,7 @@ typedef struct {
     phpalI14443p3a_Sw_DataParams_t I14443p3a;
     phalMful_Sw_DataParams_t alMful;
     uint8_t bHalBufferReader[0x40];
-    phKeyStore_Sw_DataParams_t KeyStore;
+    //phKeyStore_Sw_DataParams_t KeyStore;
     phalMfc_Sw_DataParams_t palMifareClassic;
     uint8_t Sak;
     uint8_t *uid;
@@ -119,7 +119,7 @@ typedef struct {
     PyObject_HEAD nfc_data data;
 } Mifare;
 
-int Mifare_init(Mifare *self, PyObject *args, PyObject *kwds);
+//Pyobject *Mifare_init(Mifare *self, PyObject *args, PyObject *kwds);
 PyObject *Mifare_select(Mifare *self);
 PyObject *Mifare_read_block(Mifare *self, PyObject *args);
 PyObject *Mifare_read_sign(Mifare *self);

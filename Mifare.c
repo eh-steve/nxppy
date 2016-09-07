@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 
+
 #define TX_RX_BUFFER_SIZE           128 // 128 Byte buffer
 #define DATA_BUFFER_LEN             16  /* Buffer length */
 #define MFC_BLOCK_DATA_SIZE         4   /* Block Data size - 16 Bytes */
@@ -348,32 +349,21 @@ PyObject *Mifare_select(Mifare * self)
      */
     status = phacDiscLoop_GetConfig(&sDiscLoop, PHAC_DISCLOOP_CONFIG_TECH_DETECTED, &wTagsDetected);
     if (handle_error(status, SelectError)) return NULL;
-
     /*
      * Check for Type A tag detection
      */
     if (PHAC_DISCLOOP_CHECK_ANDMASK(wTagsDetected, PHAC_DISCLOOP_POS_BIT_MASK_A)) {
 
-    /* Reset the RF field */
-    if ((status = phhalHw_FieldReset(&self->data.hal)) != PH_ERR_SUCCESS) {
-        return PyErr_Format(SelectError, "FieldReset command failed: %04x", status);
-    }
-    status =phpalI14443p3a_ActivateCard(&self->data.I14443p3a, NULL, 0x00, byteBuffer, &byteBufferSize, &bSak, &bMoreCardsAvailable) ;
-    /* Activate the communication layer part 3 of the ISO 14443A standard. */
-    if (status == PH_ERR_SUCCESS) {
-	    self->data.Sak=bSak;
+        uint8_t byteBufferSize = sDiscLoop.sTypeATargetInfo.aTypeA_I3P3[0].bUidSize + 1;
         uint8_t i;
         char asciiBuffer[sDiscLoop.sTypeATargetInfo.aTypeA_I3P3[0].bUidSize + 1];
-
         if (byteBufferSize + 1 > sDiscLoop.sTypeATargetInfo.aTypeA_I3P3[0].bUidSize + 1) {
             // Truncate if we got back too much data
             byteBufferSize = sDiscLoop.sTypeATargetInfo.aTypeA_I3P3[0].bUidSize;
         }
-        self->data.uidSize= byteBufferSize;
-		self->data.uid = malloc(sizeof(uint8_t)*byteBufferSize);
+
         for (i = 0; i < byteBufferSize; i++) {
-            sprintf(&asciiBuffer[2 * i], "%02X", byteBuffer[i]);
-            self->data.uid[i]=byteBuffer[i];
+            sprintf(&asciiBuffer[2 * i], "%02X", sDiscLoop.sTypeATargetInfo.aTypeA_I3P3[0].aUid[i]);
         }
 
         return PyUnicode_FromString(asciiBuffer);
@@ -381,30 +371,28 @@ PyObject *Mifare_select(Mifare * self)
     } else {
         return PyErr_Format(SelectError, "DISCLOOP_CHECK_ANDMASK failed: %02X", (status & PH_ERR_MASK));
     }
-
     Py_RETURN_NONE;
-}
-
 }
 PyObject *Mifare_get_type(Mifare * self)
 {
-	if(self->data.Sak==0x24)
+	uint8_t t= sDiscLoop.bDetectedTechs;
+	if(t==0x4)
 	{
 		return PyUnicode_FromString("MIFARE DESFire");
 	}
-	else if(self->data.Sak==0x00)
+	else if(t==0x3)
 	{
 		return PyUnicode_FromString("MIFARE Ultralight");
 	}
-	else if(self->data.Sak==0x09)
+	else if(t==0x2)
 	{
 		return PyUnicode_FromString("MIFARE Mini");
 	}
-	else if(self->data.Sak==0x08)
+	else if(t==0x0)
 	{
 		return PyUnicode_FromString("MIFARE Classic 1k");
 	}
-	else if(self->data.Sak==0x18)
+	else if(t==0x1)
 	{
 		return PyUnicode_FromString("MIFARE Classic 4k");
 	}
@@ -421,9 +409,6 @@ PyObject *Mifare_read_block(Mifare *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "b", &blockIdx)) {
 		Py_RETURN_NONE;
     }
-
-    phStatus_t status = 0;
-
     status = phalMful_Read(&salMfc, blockIdx, bDataBuffer);
     if (handle_error(status, ReadError)) return NULL;
 
@@ -525,8 +510,38 @@ PyMethodDef Mifare_methods[] = {
     ,
     {"clear_block", (PyCFunction) Mifare_clear_block, METH_VARARGS, "Clear 4 bytes starting at the specifed block."}
     ,
+    {"get_type", (PyCFunction) Mifare_get_type, METH_VARARGS, "Return the type os the mifare card"}
+    ,
+    {"classic_authenticate",(PyCFunction) Mifare_get_type, METH_VARARGS, "Return the type os the mifare card"}
+    ,
     {NULL}                      /* Sentinel */
 };
+
+PyObject *MifareClassic_Authenticate(Mifare *self, PyObject *args)
+{
+	uint8_t blockIdx;
+    char *key;
+    uint8_t keyLength=6;
+    int i;
+    PyObject* transferTuple;
+    #if PY_MAJOR_VERSION >= 3
+    if (!PyArg_ParseTuple(args, "bOb", &blockIdx, &transferTuple,&KeyType)) {
+#else
+    if (!PyArg_ParseTuple(args, "bOb", &blockIdx, &transferTuple,&KeyType)) {
+#endif
+		printf("Cry");
+        return NULL;
+    }
+    key= malloc(sizeof(char)*6);
+    for (i = 0; i < PyList_Size(transferTuple); i++) {
+		uint8_t k;
+		PyArg_Parse(PyList_GetItem(transferTuple, (Py_ssize_t)i),"b",&k);
+		key[i]=k;
+	}
+}
+
+
+
 
 PyTypeObject MifareType = {
     PyVarObject_HEAD_INIT(NULL, 0)
@@ -566,3 +581,4 @@ PyTypeObject MifareType = {
     0,                          /* tp_dictoffset */
     (initproc) Mifare_init,     /* tp_init */
 };
+
